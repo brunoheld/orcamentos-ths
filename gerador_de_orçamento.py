@@ -11,6 +11,24 @@ import os
 # Configuração da página do Streamlit
 st.set_page_config(page_title="Gerador de Orçamentos - THS Elevadores", page_icon="🛗", layout="wide")
 
+# 🔒 BLOCO CSS PARA OCULTAR O ÍCONE DO GITHUB, MENUS E ENGRENAGENS
+ocultar_menus_css = """
+    <style>
+    /* Esconde o menu superior direito (engrenagem/opções) */
+    #MainMenu {visibility: hidden;}
+    
+    /* Esconde a barra de cabeçalho completa (inclui o ícone do GitHub) */
+    header {visibility: hidden;}
+    
+    /* Esconde o rodapé padrão do Streamlit */
+    footer {visibility: hidden;}
+    
+    /* Ajusta o espaçamento do topo que ficou vazio após sumir com o cabeçalho */
+    .block-container {padding-top: 2rem;}
+    </style>
+"""
+st.markdown(ocultar_menus_css, unsafe_allow_html=True)
+
 # Detecta automaticamente a pasta onde o script está salvo para achar o logo ao lado dele
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -84,7 +102,6 @@ with col2:
             st.rerun()
     else:
         st.info("Nenhum item adicionado ainda.")
-
 # Função que desenha o seu LOGO como Marca d'Água no fundo do PDF
 def draw_watermark(canvas, doc):
     if os.path.exists(LOGO_PATH):
@@ -167,7 +184,8 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
         [Paragraph("THS ELEVADORES", style_header_company), Paragraph("<b>ORÇAMENTO COMERCIAL</b>", style_subtitle_company)],
         [Paragraph("Manutenção e Modernização de Elevadores", style_subtitle_company), Paragraph("Data de Emissão: 20/09/2026", style_subtitle_company)]
     ]
-    header_table = Table(header_data, colWidths=[266, 266])
+    largura_colunas_cabecalho = (300, 232)
+    header_table = Table(header_data, colWidths=largura_colunas_cabecalho)
     header_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'TOP'),
         ('ALIGN', (1,0), (1,-1), 'RIGHT'),
@@ -220,8 +238,9 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
         Paragraph(f"<b>R$ {total_geral_venda:,.2f}</b>", style_body)
     ])
     
-    # Largura das 4 colunas distribuída corretamente
-    item_table = Table(table_data, colWidths=[240, 50, 110, 132])
+    # Largura das 4 colunas distribuída de forma fixa
+    largura_colunas_itens = (252, 50, 115, 115)
+    item_table = Table(table_data, colWidths=largura_colunas_itens)
     item_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#C00000')),
         ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
