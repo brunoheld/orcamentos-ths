@@ -33,19 +33,18 @@ if not os.path.exists(LOGO_PATH):
 ARQUIVO_BANCO_CLIENTES = os.path.join(BASE_DIR, "banco_clientes.json")
 ARQUIVO_CONTROLE_SENHA = os.path.join(BASE_DIR, "controle_senha.json")
 
-# 🔑 FUNÇÕES DE CONTROLE DE SENHA PERSISTENTE (USO ÚNICO)
-def carregar_senha_atual():
+# 🔑 FUNÇÕES DE CONTROLE DE ACESSOS E SENHA (PERMITE 3 USOS)
+def carregar_controle_seguranca():
     if os.path.exists(ARQUIVO_CONTROLE_SENHA):
         try:
             with open(ARQUIVO_CONTROLE_SENHA, "r", encoding="utf-8") as f:
-                dados = json.load(f)
-                return dados.get("senha", "ths123")
+                return json.load(f)
         except:
             pass
-    return "ths123"
+    return {"senha": "ths123", "usos": 0}
 
-def atualizar_senha_para_master():
-    dados = {"senha": "8148"}
+def salvar_controle_seguranca(senha, usos):
+    dados = {"senha": str(senha), "usos": int(usos)}
     with open(ARQUIVO_CONTROLE_SENHA, "w", encoding="utf-8") as f:
         json.dump(dados, f, ensure_ascii=False, indent=4)
 
@@ -55,8 +54,10 @@ if "autenticado" not in st.session_state:
 if "bloqueado" not in st.session_state:
     st.session_state.bloqueado = False
 
-# Carrega qual a senha válida registrada no servidor neste momento
-SENHA_VALIDA_AGORA = carregar_senha_atual()
+# Carrega o estado atual de segurança guardado no disco do servidor
+CONTROLE_ATUAL = carregar_controle_seguranca()
+SENHA_VALIDA_AGORA = CONTROLE_ATUAL.get("senha", "ths123")
+USOS_REALIZADOS = CONTROLE_ATUAL.get("usos", 0)
 USUARIO_CORRETO = "ths"
 
 # Tela de Bloqueio Definitivo pós-uso ou encerramento
@@ -78,17 +79,28 @@ def tela_login():
             botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
             
             if botao_entrar:
+                # Se a senha padrão já atingiu os 3 usos e mudou para 8148
                 if usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "8148":
-                    st.error("❌ Esta senha padrão já foi utilizada uma vez e está expirada. Entre em contato com o administrador Bruno Held.")
+                    st.error("❌ Esta senha padrão já atingiu o limite máximo de 3 usos e está expirada. Entre em contato com o administrador Bruno Held.")
+                
+                # Validação dos acessos permitidos com a senha padrão ths123 (Até 3 vezes)
                 elif usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "ths123":
-                    atualizar_senha_para_master()
+                    novo_contador = USOS_REALIZADOS + 1
+                    if novo_contador >= 3:
+                        salvar_controle_seguranca("8148", novo_contador) # Queima a senha após o terceiro uso
+                    else:
+                        salvar_controle_seguranca("ths123", novo_contador) # Mantém ths123 ativa até o limite
+                    
                     st.session_state.autenticado = True
-                    st.success("Primeiro acesso autorizado! Carregando painel...")
+                    st.success(f"Acesso padrão autorizado ({novo_contador}/3 usos)! Carregando painel...")
                     st.rerun()
+                
+                # Validação do acesso Master permanente com a senha 8148
                 elif usuario_input == USUARIO_CORRETO and senha_input == "8148":
                     st.session_state.autenticado = True
                     st.success("Acesso master autorizado! Carregando painel...")
                     st.rerun()
+                
                 else:
                     st.error("Usuário ou senha incorretos. Tente novamente.")
 
