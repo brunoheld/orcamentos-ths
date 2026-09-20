@@ -33,7 +33,7 @@ if not os.path.exists(LOGO_PATH):
 ARQUIVO_BANCO_CLIENTES = os.path.join(BASE_DIR, "banco_clientes.json")
 ARQUIVO_CONTROLE_SENHA = os.path.join(BASE_DIR, "controle_senha.json")
 
-# 🔑 FUNÇÕES DE CONTROLE DE ACESSOS E SENHA (PERMITE 3 USOS)
+# 🔑 FUNÇÕES DE CONTROLE DE ACESSOS E SENHA (PERMITE 8 USOS)
 def carregar_controle_seguranca():
     if os.path.exists(ARQUIVO_CONTROLE_SENHA):
         try:
@@ -79,20 +79,20 @@ def tela_login():
             botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
             
             if botao_entrar:
-                # Se a senha padrão já atingiu os 3 usos e mudou para 8148
+                # Se a senha padrão já atingiu os 8 usos e mudou para 8148
                 if usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "8148":
-                    st.error("❌ Esta senha padrão já atingiu o limite máximo de 3 usos e está expirada. Entre em contato com o administrador Bruno Held.")
+                    st.error("❌ Esta senha padrão já atingiu o limite máximo de 8 usos e está expirada. Entre em contato com o administrador Bruno Held.")
                 
-                # Validação dos acessos permitidos com a senha padrão ths123 (Até 3 vezes)
+                # Validação dos acessos permitidos com a senha padrão ths123 (Até 8 vezes)
                 elif usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "ths123":
                     novo_contador = USOS_REALIZADOS + 1
-                    if novo_contador >= 3:
-                        salvar_controle_seguranca("8148", novo_contador) # Queima a senha após o terceiro uso
+                    if novo_contador >= 8:
+                        salvar_controle_seguranca("8148", novo_contador) # Queima a senha após o oitavo uso
                     else:
                         salvar_controle_seguranca("ths123", novo_contador) # Mantém ths123 ativa até o limite
                     
                     st.session_state.autenticado = True
-                    st.success(f"Acesso padrão autorizado ({novo_contador}/3 usos)! Carregando painel...")
+                    st.success(f"Acesso padrão autorizado ({novo_contador}/8 usos)! Carregando painel...")
                     st.rerun()
                 
                 # Validação do acesso Master permanente com a senha 8148
@@ -103,10 +103,6 @@ def tela_login():
                 
                 else:
                     st.error("Usuário ou senha incorretos. Tente novamente.")
-
-if not st.session_state.autenticado:
-    tela_login()
-    st.stop()
 def carregar_todos_clientes():
     if os.path.exists(ARQUIVO_BANCO_CLIENTES):
         try:
@@ -382,3 +378,7 @@ if st.session_state.pecas:
         st.rerun()
 else:
     st.warning("Adicione pelo menos um item para liberar a emissão do orçamento em PDF.")
+
+if not st.session_state.autenticado:
+    tela_login()
+    st.stop()
