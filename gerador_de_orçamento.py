@@ -30,6 +30,42 @@ ocultar_menus_css = """
 """
 st.markdown(ocultar_menus_css, unsafe_allow_html=True)
 
+# 🔑 SISTEMA DE LOGIN E SEGURANÇA
+# Você pode alterar o usuário e a senha alterando os valores abaixo:
+USUARIO_CORRETO = "ths"
+SENHA_CORRETA = "ths123"
+
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+
+def tela_login():
+    st.markdown("<h2 style='text-align: center; color: #C00000;'>🛗 THS ELEVADORES</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center;'>Painel Restrito - Sistema de Orçamentos Comercial</p>", unsafe_allow_html=True)
+    
+    col_l1, col_l2, col_l3 = st.columns((1, 2, 1))
+    with col_l2:
+        with st.form("formulario_login"):
+            usuario_input = st.text_input("Usuário", placeholder="Digite o usuário da empresa")
+            senha_input = st.text_input("Senha", type="password", placeholder="Digite a senha de segurança")
+            botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
+            
+            if botao_entrar:
+                if usuario_input == USUARIO_CORRETO and senha_input == SENHA_CORRETA:
+                    st.session_state.autenticado = True
+                    st.success("Acesso autorizado! Carregando...")
+                    st.rerun()
+                else:
+                    st.error("Usuário ou senha incorretos. Tente novamente.")
+
+# Executa a trava de segurança. Se não estiver autenticado, para o código aqui.
+if not st.session_state.autenticado:
+    tela_login()
+    st.stop()
+
+# ----------------------------------------------------------------------------------
+# CONTINUAÇÃO DO SISTEMA PRINCIPAL (APÓS LOGIN COMPROVADO)
+# ----------------------------------------------------------------------------------
+
 # Detecta automaticamente a pasta onde o script está salvo
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOGO_PATH = os.path.join(BASE_DIR, "logo_ths.jpg")
@@ -47,15 +83,10 @@ def carregar_todos_clientes():
                 return json.load(f)
         except:
             pass
-    # Clientes padrão caso o banco esteja vazio
     return {
         "Condomínio Edifício Horizon": {
             "cnpj": "12.345.678/0001-99",
             "endereco": "Av. Paulista, 1000 - São Paulo - SP"
-        },
-        "Condomínio Residencial Vertikal": {
-            "cnpj": "98.765.432/0001-00",
-            "endereco": "Av. Atlântica, 500 - Rio de Janeiro - RJ"
         }
     }
 
@@ -78,28 +109,30 @@ def remover_cliente_do_banco(nome):
 if 'lista_clientes_completa' not in st.session_state:
     st.session_state.lista_clientes_completa = carregar_todos_clientes()
 
-# Cabeçalho da Aplicação Web com o Logo real da THS
-col_logo_web, col_titulo_web = st.columns(2)
+# Cabeçalho da Aplicação Web com o Logo real da THS e botão Logout
+col_logo_web, col_titulo_web, col_logout = st.columns((1, 2, 0.5))
 with col_logo_web:
     if os.path.exists(LOGO_PATH):
         st.image(LOGO_PATH, width=150)
     else:
-        st.warning("⚠️ 'logo_ths.jpg' ou 'logo_ths.png' não encontrado na mesma pasta do script.")
+        st.warning("⚠️ 'logo_ths.jpg' ou 'logo_ths.png' não encontrado.")
 with col_titulo_web:
     st.title("Gerador de Orçamento - THS Elevadores")
     st.write("Selecione, cadastre ou remova clientes para gerenciar suas propostas comerciais.")
+with col_logout:
+    st.write("") # Alinhamento sutil
+    if st.button("🔒 Sair do Painel", type="secondary", use_container_width=True):
+        st.session_state.autenticado = False
+        st.rerun()
 
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("📋 Gestão Permanente de Clientes")
     
-    # Opções para a caixa de seleção (Clientes cadastrados + Opção de novo)
     opcoes_select = list(st.session_state.lista_clientes_completa.keys()) + ["+ Cadastrar Novo Cliente"]
-    
     cliente_selecionado = st.selectbox("Selecione o Cliente Destinatário:", opcoes_select)
     
-    # Lógica para preencher os campos com base na seleção
     if cliente_selecionado == "+ Cadastrar Novo Cliente":
         val_nome = ""
         val_cnpj = ""
@@ -111,18 +144,16 @@ with col1:
         val_endereco = st.session_state.lista_clientes_completa[cliente_selecionado]["endereco"]
         desativar_nome = True
 
-    # Campos de entrada de dados
     cliente = st.text_input("Nome do Cliente / Empresa", value=val_nome, disabled=desativar_nome)
     cnpj = st.text_input("CNPJ", value=val_cnpj)
     endereco = st.text_input("Endereço Completo", value=val_endereco)
     
-    # Botões de ação baseados na seleção do cliente
     if cliente_selecionado == "+ Cadastrar Novo Cliente":
         if st.button("➕ Gravar Novo Cliente no Banco de Dados", use_container_width=True):
             if cliente and cnpj and endereco:
                 salvar_cliente_no_banco(cliente, cnpj, endereco)
                 st.session_state.lista_clientes_completa = carregar_todos_clientes()
-                st.success(f"Cliente '{cliente}' cadastrado com sucesso!")
+                st.success(f"Cliente '{cliente}' cadastrado!")
                 st.rerun()
             else:
                 st.error("Preencha todos os campos antes de cadastrar.")
@@ -138,7 +169,7 @@ with col1:
             if st.button("❌ Remover da Lista", use_container_width=True, type="primary"):
                 remover_cliente_do_banco(cliente_selecionado)
                 st.session_state.lista_clientes_completa = carregar_todos_clientes()
-                st.warning(f"Cliente '{cliente_selecionado}' foi removido com sucesso!")
+                st.warning(f"Cliente '{cliente_selecionado}' foi removido!")
                 st.rerun()
 
 # Inicializa o estado da lista de peças se não existir
@@ -160,7 +191,7 @@ with col2:
         
         if submit and f_nome:
             st.session_state.pecas.append({"nome": f_nome, "quantidade": f_qnt, "custo": f_custo})
-            st.success(f"Item '{f_nome}' adicionado com sucesso!")
+            st.success(f"Item '{f_nome}' adicionado!")
 
     if st.session_state.pecas:
         df_pecas = pd.DataFrame(st.session_state.pecas)
