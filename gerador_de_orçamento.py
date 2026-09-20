@@ -66,6 +66,14 @@ def salvar_cliente_no_banco(nome, cnpj, endereco):
     with open(ARQUIVO_BANCO_CLIENTES, "w", encoding="utf-8") as f:
         json.dump(banco, f, ensure_ascii=False, indent=4)
 
+# Função para remover um cliente do banco de dados
+def remover_cliente_do_banco(nome):
+    banco = carregar_todos_clientes()
+    if nome in banco:
+        del banco[nome]
+        with open(ARQUIVO_BANCO_CLIENTES, "w", encoding="utf-8") as f:
+            json.dump(banco, f, ensure_ascii=False, indent=4)
+
 # Inicializa o banco de dados na sessão do Streamlit
 if 'lista_clientes_completa' not in st.session_state:
     st.session_state.lista_clientes_completa = carregar_todos_clientes()
@@ -79,7 +87,7 @@ with col_logo_web:
         st.warning("⚠️ 'logo_ths.jpg' ou 'logo_ths.png' não encontrado na mesma pasta do script.")
 with col_titulo_web:
     st.title("Gerador de Orçamento - THS Elevadores")
-    st.write("Selecione ou cadastre clientes para gerar propostas comerciais automáticas.")
+    st.write("Selecione, cadastre ou remova clientes para gerenciar suas propostas comerciais.")
 
 col1, col2 = st.columns(2)
 
@@ -108,22 +116,30 @@ with col1:
     cnpj = st.text_input("CNPJ", value=val_cnpj)
     endereco = st.text_input("Endereço Completo", value=val_endereco)
     
-    # Se for um cliente novo ou alteração de dados, permite salvar permanentemente
+    # Botões de ação baseados na seleção do cliente
     if cliente_selecionado == "+ Cadastrar Novo Cliente":
-        if st.button("➕ Gravar Novo Cliente no Banco de Dados"):
+        if st.button("➕ Gravar Novo Cliente no Banco de Dados", use_container_width=True):
             if cliente and cnpj and endereco:
                 salvar_cliente_no_banco(cliente, cnpj, endereco)
                 st.session_state.lista_clientes_completa = carregar_todos_clientes()
-                st.success(f"Cliente '{cliente}' cadastrado com sucesso de forma permanente!")
+                st.success(f"Cliente '{cliente}' cadastrado com sucesso!")
                 st.rerun()
             else:
                 st.error("Preencha todos os campos antes de cadastrar.")
     else:
-        if st.button("💾 Atualizar Dados deste Cliente"):
-            salvar_cliente_no_banco(cliente, cnpj, endereco)
-            st.session_state.lista_clientes_completa = carregar_todos_clientes()
-            st.success("Dados do cliente atualizados permanentemente!")
-            st.rerun()
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("💾 Atualizar Dados", use_container_width=True):
+                salvar_cliente_no_banco(cliente, cnpj, endereco)
+                st.session_state.lista_clientes_completa = carregar_todos_clientes()
+                st.success("Dados atualizados permanentemente!")
+                st.rerun()
+        with col_btn2:
+            if st.button("❌ Remover da Lista", use_container_width=True, type="primary"):
+                remover_cliente_do_banco(cliente_selecionado)
+                st.session_state.lista_clientes_completa = carregar_todos_clientes()
+                st.warning(f"Cliente '{cliente_selecionado}' foi removido com sucesso!")
+                st.rerun()
 
 # Inicializa o estado da lista de peças se não existir
 if 'pecas' not in st.session_state:
@@ -331,7 +347,6 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
 
 if st.session_state.pecas:
     st.subheader("🖨️ Emitir Documento")
-    # Garante que puxa o nome do cliente atual selecionado ou digitado para o PDF
     pdf_bytes = gerar_pdf_orcamento(cliente if cliente else "Cliente", cnpj, endereco, st.session_state.pecas)
     
     st.download_button(
