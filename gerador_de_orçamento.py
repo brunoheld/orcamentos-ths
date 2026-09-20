@@ -60,7 +60,7 @@ SENHA_VALIDA_AGORA = CONTROLE_ATUAL.get("senha", "ths123")
 USOS_REALIZADOS = CONTROLE_ATUAL.get("usos", 0)
 USUARIO_CORRETO = "ths"
 
-# Tela de Bloqueio Definitivo pós-uso ou encerramento
+# Tela de Bloqueio Definitivo pós-uso ou encerramento por limite
 if st.session_state.bloqueado:
     st.markdown("<h2 style='text-align: center; color: #C00000;'>🔒 Sessão Encerrada</h2>", unsafe_allow_html=True)
     st.markdown("<h4 style='text-align: center;'>Esta aplicação expirou o limite de uso de segurança.</h4>", unsafe_allow_html=True)
@@ -79,30 +79,36 @@ def tela_login():
             botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
             
             if botao_entrar:
-                # Se a senha padrão já atingiu os 8 usos e mudou para 8148
+                # Se a senha padrão já atingiu os 8 usos e mudou para 8148 no servidor
                 if usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "8148":
-                    st.error("❌ Esta senha padrão já atingiu o limite máximo de 8 usos e está expirada. Entre em contato com o administrador Bruno Held.")
+                    st.error("❌ Esta senha padrão atingiu o limite máximo de 8 usos e está expirada. Para obter acesso ilimitado, entre em contato com o administrador Bruno Held.")
                 
                 # Validação dos acessos permitidos com a senha padrão ths123 (Até 8 vezes)
                 elif usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "ths123":
                     novo_contador = USOS_REALIZADOS + 1
                     if novo_contador >= 8:
-                        salvar_controle_seguranca("8148", novo_contador) # Queima a senha após o oitavo uso
+                        salvar_controle_seguranca("8148", novo_contador) # Bloqueia mudando a senha mestre para 8148
                     else:
-                        salvar_controle_seguranca("ths123", novo_contador) # Mantém ths123 ativa até o limite
+                        salvar_controle_seguranca("ths123", novo_contador) # Incrementa o uso
                     
                     st.session_state.autenticado = True
-                    st.success(f"Acesso padrão autorizado ({novo_contador}/8 usos)! Carregando painel...")
+                    # Alerta o usuário na tela sobre o limite restante
+                    st.warning(f"Atenção: Você está utilizando uma senha temporária. Uso registrado ({novo_contador}/8). Para obter acesso ilimitado, entre em contato com o administrador Bruno Held.")
                     st.rerun()
                 
-                # Validação do acesso Master permanente com a senha 8148
+                # Validação do acesso permanente com a sua senha master 8148
                 elif usuario_input == USUARIO_CORRETO and senha_input == "8148":
                     st.session_state.autenticado = True
-                    st.success("Acesso master autorizado! Carregando painel...")
+                    st.success("Acesso master autorizado com sucesso!")
                     st.rerun()
                 
                 else:
                     st.error("Usuário ou senha incorretos. Tente novamente.")
+
+# Aplica a trava rígida de login
+if not st.session_state.autenticado:
+    tela_login()
+    st.stop()
 def carregar_todos_clientes():
     if os.path.exists(ARQUIVO_BANCO_CLIENTES):
         try:
@@ -371,6 +377,7 @@ if st.session_state.pecas:
         data=pdf_bytes,
         file_name=f"Orcamento_THS_{(cliente if cliente else 'Cliente').replace(' ', '_')}.pdf",
         mime="application/pdf",
+        with_key="btn_download_pdf",
         use_container_width=True
     ):
         st.session_state.autenticado = False
@@ -378,7 +385,3 @@ if st.session_state.pecas:
         st.rerun()
 else:
     st.warning("Adicione pelo menos um item para liberar a emissão do orçamento em PDF.")
-
-if not st.session_state.autenticado:
-    tela_login()
-    st.stop()
