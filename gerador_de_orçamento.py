@@ -33,7 +33,7 @@ if not os.path.exists(LOGO_PATH):
 ARQUIVO_BANCO_CLIENTES = os.path.join(BASE_DIR, "banco_clientes.json")
 ARQUIVO_CONTROLE_SENHA = os.path.join(BASE_DIR, "controle_senha.json")
 
-# 🔑 FUNÇÕES DE CONTROLE DE ACESSOS E SENHA (PERMITE 8 USOS)
+# 🔑 FUNÇÕES DE CONTROLE DE ACESSOS E SENHA (8 USOS MÁXIMO)
 def carregar_controle_seguranca():
     if os.path.exists(ARQUIVO_CONTROLE_SENHA):
         try:
@@ -64,12 +64,15 @@ USUARIO_CORRETO = "ths"
 if st.session_state.bloqueado:
     st.markdown("<h2 style='text-align: center; color: #C00000;'>🔒 Sessão Encerrada</h2>", unsafe_allow_html=True)
     st.markdown("<h4 style='text-align: center;'>Esta aplicação expirou o limite de uso de segurança.</h4>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; font-size: 18px; font-weight: bold; color: #C00000;'>Entre em contato com o administrador Bruno Held.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 18px; font-weight: bold; color: #C00000;'>Para obter acesso ilimitado, entre em contato com o administrador Bruno Held dos Santos.</p>", unsafe_allow_html=True)
     st.stop()
 
 def tela_login():
     st.markdown("<h2 style='text-align: center; color: #C00000;'>🛗 THS ELEVADORES</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center;'>Painel Restrito - Sistema de Orçamentos Comercial</p>", unsafe_allow_html=True)
+    st.markdown("<h4 style='text-align: center;'>Painel Restrito - Sistema de Orçamentos Comercial</h4>", unsafe_allow_html=True)
+    
+    # ⚠️ MENSAGEM PREVENTIVA EXIBIDA ANTES DO LOGIN
+    st.info("ℹ️ **Aviso do Sistema:** A senha padrão da empresa possui limite máximo de **8 acessos temporários**. Para obter acesso ilimitado e definitivo, entre em contato com o administrador **Bruno Held dos Santos**.")
     
     col_l1, col_l2, col_l3 = st.columns((1, 2, 1))
     with col_l2:
@@ -81,7 +84,7 @@ def tela_login():
             if botao_entrar:
                 # Se a senha padrão já atingiu os 8 usos e mudou para 8148 no servidor
                 if usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "8148":
-                    st.error("❌ Esta senha padrão atingiu o limite máximo de 8 usos e está expirada. Para obter acesso ilimitado, entre em contato com o administrador Bruno Held.")
+                    st.error("❌ Esta senha padrão atingiu o limite máximo de 8 usos e está expirada. Para obter acesso ilimitado, entre em contato com o administrador Bruno Held dos Santos.")
                 
                 # Validação dos acessos permitidos com a senha padrão ths123 (Até 8 vezes)
                 elif usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "ths123":
@@ -92,14 +95,13 @@ def tela_login():
                         salvar_controle_seguranca("ths123", novo_contador) # Incrementa o uso
                     
                     st.session_state.autenticado = True
-                    # Alerta o usuário na tela sobre o limite restante
-                    st.warning(f"Atenção: Você está utilizando uma senha temporária. Uso registrado ({novo_contador}/8). Para obter acesso ilimitado, entre em contato com o administrador Bruno Held.")
+                    st.session_state.mensagem_limite = f"⚠️ **Acesso Temporário Registrado ({novo_contador}/8):** Você possui mais {8 - novo_contador} acessos restantes com esta senha padrão. Para obter acesso ilimitado, entre em contato com o administrador **Bruno Held dos Santos**."
                     st.rerun()
                 
                 # Validação do acesso permanente com a sua senha master 8148
                 elif usuario_input == USUARIO_CORRETO and senha_input == "8148":
                     st.session_state.autenticado = True
-                    st.success("Acesso master autorizado com sucesso!")
+                    st.session_state.mensagem_limite = "✅ **Acesso Master Autorizado:** Modo de uso ilimitado ativo."
                     st.rerun()
                 
                 else:
@@ -138,6 +140,10 @@ def remover_cliente_do_banco(nome):
 
 if 'lista_clientes_completa' not in st.session_state:
     st.session_state.lista_clientes_completa = carregar_todos_clientes()
+
+# Exibe o aviso de usos ativos no topo do painel interno
+if "mensagem_limite" in st.session_state:
+    st.markdown(st.session_state.mensagem_limite, unsafe_allow_html=True)
 
 col_logo_web, col_titulo_web, col_logout = st.columns((1, 2, 0.6))
 with col_logo_web:
@@ -340,6 +346,7 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
     ])
     
     largura_colunas_itens = (252, 50, 115, 115)
+    item_table = Table(table_data, colWidths=letter[0]-80) # Ajustado dinamicamente para a largura da folha
     item_table = Table(table_data, colWidths=largura_colunas_itens)
     item_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#C00000')),
@@ -377,7 +384,6 @@ if st.session_state.pecas:
         data=pdf_bytes,
         file_name=f"Orcamento_THS_{(cliente if cliente else 'Cliente').replace(' ', '_')}.pdf",
         mime="application/pdf",
-        with_key="btn_download_pdf",
         use_container_width=True
     ):
         st.session_state.autenticado = False
