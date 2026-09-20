@@ -7,6 +7,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.graphics.shapes import Drawing, Rect
 import io
 import os
+import json
 
 # Configuração da página do Streamlit
 st.set_page_config(page_title="Gerador de Orçamentos - THS Elevadores", page_icon="🛗", layout="wide")
@@ -29,13 +30,45 @@ ocultar_menus_css = """
 """
 st.markdown(ocultar_menus_css, unsafe_allow_html=True)
 
-# Detecta automaticamente a pasta onde o script está salvo para achar o logo ao lado dele
+# Detecta automaticamente a pasta onde o script está salvo
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Tenta encontrar o logo tanto em formato .jpg quanto .png
 LOGO_PATH = os.path.join(BASE_DIR, "logo_ths.jpg")
 if not os.path.exists(LOGO_PATH):
     LOGO_PATH = os.path.join(BASE_DIR, "logo_ths.png")
+
+# Arquivo local para salvar o histórico de clientes permanentemente
+ARQUIVO_BANCO_CLIENTES = os.path.join(BASE_DIR, "banco_clientes.json")
+
+# Função para carregar todos os clientes do banco de dados
+def carregar_todos_clientes():
+    if os.path.exists(ARQUIVO_BANCO_CLIENTES):
+        try:
+            with open(ARQUIVO_BANCO_CLIENTES, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            pass
+    # Clientes padrão caso o banco esteja vazio
+    return {
+        "Condomínio Edifício Horizon": {
+            "cnpj": "12.345.678/0001-99",
+            "endereco": "Av. Paulista, 1000 - São Paulo - SP"
+        },
+        "Condomínio Residencial Vertikal": {
+            "cnpj": "98.765.432/0001-00",
+            "endereco": "Av. Atlântica, 500 - Rio de Janeiro - RJ"
+        }
+    }
+
+# Função para salvar/adicionar um cliente no banco de dados
+def salvar_cliente_no_banco(nome, cnpj, endereco):
+    banco = carregar_todos_clientes()
+    banco[nome] = {"cnpj": cnpj, "endereco": endereco}
+    with open(ARQUIVO_BANCO_CLIENTES, "w", encoding="utf-8") as f:
+        json.dump(banco, f, ensure_ascii=False, indent=4)
+
+# Inicializa o banco de dados na sessão do Streamlit
+if 'lista_clientes_completa' not in st.session_state:
+    st.session_state.lista_clientes_completa = carregar_todos_clientes()
 
 # Cabeçalho da Aplicação Web com o Logo real da THS
 col_logo_web, col_titulo_web = st.columns(2)
@@ -46,15 +79,51 @@ with col_logo_web:
         st.warning("⚠️ 'logo_ths.jpg' ou 'logo_ths.png' não encontrado na mesma pasta do script.")
 with col_titulo_web:
     st.title("Gerador de Orçamento - THS Elevadores")
-    st.write("Insira os dados internos para gerar a proposta comercial limpa para o cliente.")
+    st.write("Selecione ou cadastre clientes para gerar propostas comerciais automáticas.")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("📋 Dados do Cliente")
-    cliente = st.text_input("Nome do Cliente / Empresa", "Condomínio Edifício Horizon")
-    cnpj = st.text_input("CNPJ", "12.345.678/0001-99")
-    endereco = st.text_input("Endereço Completo", "Av. Paulista, 1000 - São Paulo - SP")
+    st.subheader("📋 Gestão Permanente de Clientes")
+    
+    # Opções para a caixa de seleção (Clientes cadastrados + Opção de novo)
+    opcoes_select = list(st.session_state.lista_clientes_completa.keys()) + ["+ Cadastrar Novo Cliente"]
+    
+    cliente_selecionado = st.selectbox("Selecione o Cliente Destinatário:", opcoes_select)
+    
+    # Lógica para preencher os campos com base na seleção
+    if cliente_selecionado == "+ Cadastrar Novo Cliente":
+        val_nome = ""
+        val_cnpj = ""
+        val_endereco = ""
+        desativar_nome = False
+    else:
+        val_nome = cliente_selecionado
+        val_cnpj = st.session_state.lista_clientes_completa[cliente_selecionado]["cnpj"]
+        val_endereco = st.session_state.lista_clientes_completa[cliente_selecionado]["endereco"]
+        desativar_nome = True
+
+    # Campos de entrada de dados
+    cliente = st.text_input("Nome do Cliente / Empresa", value=val_nome, disabled=desativar_nome)
+    cnpj = st.text_input("CNPJ", value=val_cnpj)
+    endereco = st.text_input("Endereço Completo", value=val_endereco)
+    
+    # Se for um cliente novo ou alteração de dados, permite salvar permanentemente
+    if cliente_selecionado == "+ Cadastrar Novo Cliente":
+        if st.button("➕ Gravar Novo Cliente no Banco de Dados"):
+            if cliente and cnpj and endereco:
+                salvar_cliente_no_banco(cliente, cnpj, endereco)
+                st.session_state.lista_clientes_completa = carregar_todos_clientes()
+                st.success(f"Cliente '{cliente}' cadastrado com sucesso de forma permanente!")
+                st.rerun()
+            else:
+                st.error("Preencha todos os campos antes de cadastrar.")
+    else:
+        if st.button("💾 Atualizar Dados deste Cliente"):
+            salvar_cliente_no_banco(cliente, cnpj, endereco)
+            st.session_state.lista_clientes_completa = carregar_todos_clientes()
+            st.success("Dados do cliente atualizados permanentemente!")
+            st.rerun()
 
 # Inicializa o estado da lista de peças se não existir
 if 'pecas' not in st.session_state:
@@ -67,7 +136,6 @@ if 'pecas' not in st.session_state:
 with col2:
     st.subheader("⚙️ Itens do Orçamento (Painel Interno)")
     
-    # Formulário para adicionar nova peça informando o Custo Real
     with st.form("nova_peca_form", clear_on_submit=True):
         f_nome = st.text_input("Nome da Peça")
         f_qnt = st.number_input("Quantidade", min_value=1, value=1, step=1)
@@ -78,20 +146,16 @@ with col2:
             st.session_state.pecas.append({"nome": f_nome, "quantidade": f_qnt, "custo": f_custo})
             st.success(f"Item '{f_nome}' adicionado com sucesso!")
 
-    # Exibição e gerenciamento das peças atuais na tela da aplicação
     if st.session_state.pecas:
         df_pecas = pd.DataFrame(st.session_state.pecas)
-        # Aplica a margem de 2.5x de forma oculta para o cliente
         df_pecas['Preço Venda Unit.'] = df_pecas['custo'] * 2.5
         df_pecas['Total Item'] = df_pecas['Preço Venda Unit.'] * df_pecas['quantidade']
         
-        # Cria visualização formatada para a tabela web
         df_display = df_pecas.copy()
         df_display['custo'] = df_display['custo'].map('R$ {:,.2f}'.format)
         df_display['Preço Venda Unit.'] = df_display['Preço Venda Unit.'].map('R$ {:,.2f}'.format)
         df_display['Total Item'] = df_display['Total Item'].map('R$ {:,.2f}'.format)
         
-        # Renomeia para manter clareza no painel do administrador
         df_display.columns = ['Nome da Peça', 'Qtd', 'Seu Custo Original', 'Preço Venda Final', 'Total do Item']
         
         st.write("### Itens Atuais no Sistema")
@@ -106,7 +170,6 @@ with col2:
 def draw_watermark(canvas, doc):
     if os.path.exists(LOGO_PATH):
         canvas.saveState()
-        # Transparência suave (6%) para que o fundo do logo não impeça a leitura dos textos
         canvas.setFillAlpha(0.06)
         canvas.setStrokeAlpha(0.06)
         
@@ -136,7 +199,7 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
         fontName='Helvetica-Bold',
         fontSize=22,
         leading=26,
-        textColor=colors.HexColor('#C00000') # Vermelho institucional baseado no logo
+        textColor=colors.HexColor('#C00000')
     )
     
     style_subtitle_company = ParagraphStyle(
@@ -179,7 +242,6 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
 
     story = []
     
-    # Cabeçalho do PDF comercial
     header_data = [
         [Paragraph("THS ELEVADORES", style_header_company), Paragraph("<b>ORÇAMENTO COMERCIAL</b>", style_subtitle_company)],
         [Paragraph("Manutenção e Modernização de Elevadores", style_subtitle_company), Paragraph("Data de Emissão: 20/09/2026", style_subtitle_company)]
@@ -194,13 +256,11 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
     story.append(header_table)
     story.append(Spacer(1, 15))
     
-    # Linha divisória vermelha
     line_drawing = Drawing(532, 2)
     line_drawing.add(Rect(0, 0, 532, 2, fillColor=colors.HexColor('#C00000'), strokeColor=None))
     story.append(line_drawing)
     story.append(Spacer(1, 15))
     
-    # Dados do Cliente
     client_info = f"""
     <b>Cliente:</b> {cliente}<br/>
     <b>CNPJ:</b> {cnpj}<br/>
@@ -211,7 +271,6 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
     
     story.append(Paragraph("PROPOSTA DE FORNECIMENTO DE PEÇAS", style_title))
     
-    # Colunas estruturadas para esconder os custos originais do cliente final
     table_data = [[
         Paragraph("Item / Descrição da Peça", style_th),
         Paragraph("Qtd", style_th),
@@ -238,7 +297,6 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
         Paragraph(f"<b>R$ {total_geral_venda:,.2f}</b>", style_body)
     ])
     
-    # Largura das 4 colunas distribuída de forma fixa
     largura_colunas_itens = (252, 50, 115, 115)
     item_table = Table(table_data, colWidths=largura_colunas_itens)
     item_table.setStyle(TableStyle([
@@ -273,12 +331,13 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
 
 if st.session_state.pecas:
     st.subheader("🖨️ Emitir Documento")
-    pdf_bytes = gerar_pdf_orcamento(cliente, cnpj, endereco, st.session_state.pecas)
+    # Garante que puxa o nome do cliente atual selecionado ou digitado para o PDF
+    pdf_bytes = gerar_pdf_orcamento(cliente if cliente else "Cliente", cnpj, endereco, st.session_state.pecas)
     
     st.download_button(
         label="📥 Baixar Orçamento em PDF Oficial para Cliente",
         data=pdf_bytes,
-        file_name=f"Orcamento_THS_{cliente.replace(' ', '_')}.pdf",
+        file_name=f"Orcamento_THS_{(cliente if cliente else 'Cliente').replace(' ', '_')}.pdf",
         mime="application/pdf",
         use_container_width=True
     )
