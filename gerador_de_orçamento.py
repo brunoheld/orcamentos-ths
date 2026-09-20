@@ -15,28 +15,56 @@ st.set_page_config(page_title="Gerador de Orçamentos - THS Elevadores", page_ic
 # 🔒 BLOCO CSS PARA OCULTAR O ÍCONE DO GITHUB, MENUS E ENGRENAGENS
 ocultar_menus_css = """
     <style>
-    /* Esconde o menu superior direito (engrenagem/opções) */
     #MainMenu {visibility: hidden;}
-    
-    /* Esconde a barra de cabeçalho completa (inclui o ícone do GitHub) */
     header {visibility: hidden;}
-    
-    /* Esconde o rodapé padrão do Streamlit */
     footer {visibility: hidden;}
-    
-    /* Ajusta o espaçamento do topo que ficou vazio após sumir com o cabeçalho */
     .block-container {padding-top: 2rem;}
     </style>
 """
 st.markdown(ocultar_menus_css, unsafe_allow_html=True)
 
-# 🔑 SISTEMA DE LOGIN E SEGURANÇA
-# Você pode alterar o usuário e a senha alterando os valores abaixo:
-USUARIO_CORRETO = "ths"
-SENHA_CORRETA = "ths123"
+# Detecta automaticamente a pasta onde o script está salvo
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+LOGO_PATH = os.path.join(BASE_DIR, "logo_ths.jpg")
+if not os.path.exists(LOGO_PATH):
+    LOGO_PATH = os.path.join(BASE_DIR, "logo_ths.png")
 
+# Arquivos locais para salvar os estados do sistema permanentemente
+ARQUIVO_BANCO_CLIENTES = os.path.join(BASE_DIR, "banco_clientes.json")
+ARQUIVO_CONTROLE_SENHA = os.path.join(BASE_DIR, "controle_senha.json")
+
+# 🔑 FUNÇÕES DE CONTROLE DE SENHA PERSISTENTE (USO ÚNICO)
+def carregar_senha_atual():
+    if os.path.exists(ARQUIVO_CONTROLE_SENHA):
+        try:
+            with open(ARQUIVO_CONTROLE_SENHA, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+                return dados.get("senha", "ths123")
+        except:
+            pass
+    return "ths123"
+
+def atualizar_senha_para_master():
+    dados = {"senha": "8148"}
+    with open(ARQUIVO_CONTROLE_SENHA, "w", encoding="utf-8") as f:
+        json.dump(dados, f, ensure_ascii=False, indent=4)
+
+# Inicialização de estados do sistema na sessão atual
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
+if "bloqueado" not in st.session_state:
+    st.session_state.bloqueado = False
+
+# Carrega qual a senha válida registrada no servidor neste momento
+SENHA_VALIDA_AGORA = carregar_senha_atual()
+USUARIO_CORRETO = "ths"
+
+# Tela de Bloqueio Definitivo pós-uso ou encerramento
+if st.session_state.bloqueado:
+    st.markdown("<h2 style='text-align: center; color: #C00000;'>🔒 Sessão Encerrada</h2>", unsafe_allow_html=True)
+    st.markdown("<h4 style='text-align: center;'>Esta aplicação expirou o limite de uso de segurança.</h4>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; font-size: 18px; font-weight: bold; color: #C00000;'>Entre em contato com o administrador Bruno Held.</p>", unsafe_allow_html=True)
+    st.stop()
 
 def tela_login():
     st.markdown("<h2 style='text-align: center; color: #C00000;'>🛗 THS ELEVADORES</h2>", unsafe_allow_html=True)
@@ -50,32 +78,23 @@ def tela_login():
             botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
             
             if botao_entrar:
-                if usuario_input == USUARIO_CORRETO and senha_input == SENHA_CORRETA:
+                if usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "8148":
+                    st.error("❌ Esta senha padrão já foi utilizada uma vez e está expirada. Entre em contato com o administrador Bruno Held.")
+                elif usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "ths123":
+                    atualizar_senha_para_master()
                     st.session_state.autenticado = True
-                    st.success("Acesso autorizado! Carregando...")
+                    st.success("Primeiro acesso autorizado! Carregando painel...")
+                    st.rerun()
+                elif usuario_input == USUARIO_CORRETO and senha_input == "8148":
+                    st.session_state.autenticado = True
+                    st.success("Acesso master autorizado! Carregando painel...")
                     st.rerun()
                 else:
                     st.error("Usuário ou senha incorretos. Tente novamente.")
 
-# Executa a trava de segurança. Se não estiver autenticado, para o código aqui.
 if not st.session_state.autenticado:
     tela_login()
     st.stop()
-
-# ----------------------------------------------------------------------------------
-# CONTINUAÇÃO DO SISTEMA PRINCIPAL (APÓS LOGIN COMPROVADO)
-# ----------------------------------------------------------------------------------
-
-# Detecta automaticamente a pasta onde o script está salvo
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-LOGO_PATH = os.path.join(BASE_DIR, "logo_ths.jpg")
-if not os.path.exists(LOGO_PATH):
-    LOGO_PATH = os.path.join(BASE_DIR, "logo_ths.png")
-
-# Arquivo local para salvar o histórico de clientes permanentemente
-ARQUIVO_BANCO_CLIENTES = os.path.join(BASE_DIR, "banco_clientes.json")
-
-# Função para carregar todos os clientes do banco de dados
 def carregar_todos_clientes():
     if os.path.exists(ARQUIVO_BANCO_CLIENTES):
         try:
@@ -90,14 +109,12 @@ def carregar_todos_clientes():
         }
     }
 
-# Função para salvar/adicionar um cliente no banco de dados
 def salvar_cliente_no_banco(nome, cnpj, endereco):
     banco = carregar_todos_clientes()
     banco[nome] = {"cnpj": cnpj, "endereco": endereco}
     with open(ARQUIVO_BANCO_CLIENTES, "w", encoding="utf-8") as f:
         json.dump(banco, f, ensure_ascii=False, indent=4)
 
-# Função para remover um cliente do banco de dados
 def remover_cliente_do_banco(nome):
     banco = carregar_todos_clientes()
     if nome in banco:
@@ -105,31 +122,29 @@ def remover_cliente_do_banco(nome):
         with open(ARQUIVO_BANCO_CLIENTES, "w", encoding="utf-8") as f:
             json.dump(banco, f, ensure_ascii=False, indent=4)
 
-# Inicializa o banco de dados na sessão do Streamlit
 if 'lista_clientes_completa' not in st.session_state:
     st.session_state.lista_clientes_completa = carregar_todos_clientes()
 
-# Cabeçalho da Aplicação Web com o Logo real da THS e botão Logout
-col_logo_web, col_titulo_web, col_logout = st.columns((1, 2, 0.5))
+col_logo_web, col_titulo_web, col_logout = st.columns((1, 2, 0.6))
 with col_logo_web:
     if os.path.exists(LOGO_PATH):
         st.image(LOGO_PATH, width=150)
     else:
-        st.warning("⚠️ 'logo_ths.jpg' ou 'logo_ths.png' não encontrado.")
+        st.warning("⚠️ Logo não encontrado.")
 with col_titulo_web:
     st.title("Gerador de Orçamento - THS Elevadores")
-    st.write("Selecione, cadastre ou remova clientes para gerenciar suas propostas comerciais.")
+    st.write("Painel Comercial Restrito - Gerenciamento de Propostas.")
 with col_logout:
-    st.write("") # Alinhamento sutil
-    if st.button("🔒 Sair do Painel", type="secondary", use_container_width=True):
+    st.write("") 
+    if st.button("🚪 Fechar Aplicação", type="secondary", use_container_width=True):
         st.session_state.autenticado = False
+        st.session_state.bloqueado = True
         st.rerun()
 
 col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("📋 Gestão Permanente de Clientes")
-    
     opcoes_select = list(st.session_state.lista_clientes_completa.keys()) + ["+ Cadastrar Novo Cliente"]
     cliente_selecionado = st.selectbox("Selecione o Cliente Destinatário:", opcoes_select)
     
@@ -172,7 +187,6 @@ with col1:
                 st.warning(f"Cliente '{cliente_selecionado}' foi removido!")
                 st.rerun()
 
-# Inicializa o estado da lista de peças se não existir
 if 'pecas' not in st.session_state:
     st.session_state.pecas = [
         {"nome": "Cabo de Tração 1/2", "quantidade": 4, "custo": 150.0},
@@ -182,7 +196,6 @@ if 'pecas' not in st.session_state:
 
 with col2:
     st.subheader("⚙️ Itens do Orçamento (Painel Interno)")
-    
     with st.form("nova_peca_form", clear_on_submit=True):
         f_nome = st.text_input("Nome da Peça")
         f_qnt = st.number_input("Quantidade", min_value=1, value=1, step=1)
@@ -202,7 +215,6 @@ with col2:
         df_display['custo'] = df_display['custo'].map('R$ {:,.2f}'.format)
         df_display['Preço Venda Unit.'] = df_display['Preço Venda Unit.'].map('R$ {:,.2f}'.format)
         df_display['Total Item'] = df_display['Total Item'].map('R$ {:,.2f}'.format)
-        
         df_display.columns = ['Nome da Peça', 'Qtd', 'Seu Custo Original', 'Preço Venda Final', 'Total do Item']
         
         st.write("### Itens Atuais no Sistema")
@@ -241,50 +253,24 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
     styles = getSampleStyleSheet()
     
     style_header_company = ParagraphStyle(
-        'CompanyHeader',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=22,
-        leading=26,
-        textColor=colors.HexColor('#C00000')
+        'CompanyHeader', parent=styles['Normal'], fontName='Helvetica-Bold',
+        fontSize=22, leading=26, textColor=colors.HexColor('#C00000')
     )
-    
     style_subtitle_company = ParagraphStyle(
-        'CompanySubtitle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=10,
-        leading=12,
-        textColor=colors.HexColor('#555555')
+        'CompanySubtitle', parent=styles['Normal'], fontName='Helvetica',
+        fontSize=10, leading=12, textColor=colors.HexColor('#555555')
     )
-
     style_title = ParagraphStyle(
-        'DocTitle',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=16,
-        leading=20,
-        alignment=1,
-        textColor=colors.HexColor('#C00000'),
-        spaceAfter=20
+        'DocTitle', parent=styles['Normal'], fontName='Helvetica-Bold',
+        fontSize=16, leading=20, alignment=1, textColor=colors.HexColor('#C00000'), spaceAfter=20
     )
-    
     style_body = ParagraphStyle(
-        'BodyTextCustom',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=10,
-        leading=14,
-        textColor=colors.HexColor('#222222')
+        'BodyTextCustom', parent=styles['Normal'], fontName='Helvetica',
+        fontSize=10, leading=14, textColor=colors.HexColor('#222222')
     )
-    
     style_th = ParagraphStyle(
-        'TableHead',
-        parent=styles['Normal'],
-        fontName='Helvetica-Bold',
-        fontSize=10,
-        leading=12,
-        textColor=colors.white
+        'TableHead', parent=styles['Normal'], fontName='Helvetica-Bold',
+        fontSize=10, leading=12, textColor=colors.white
     )
 
     story = []
@@ -308,11 +294,7 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
     story.append(line_drawing)
     story.append(Spacer(1, 15))
     
-    client_info = f"""
-    <b>Cliente:</b> {cliente}<br/>
-    <b>CNPJ:</b> {cnpj}<br/>
-    <b>Endereço:</b> {endereco}
-    """
+    client_info = f"<b>Cliente:</b> {cliente}<br/><b>CNPJ:</b> {cnpj}<br/><b>Endereço:</b> {endereco}"
     story.append(Paragraph(client_info, style_body))
     story.append(Spacer(1, 20))
     
@@ -339,8 +321,7 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
         ])
         
     table_data.append([
-        Paragraph("<b>VALOR TOTAL DA PROPOSTA</b>", style_body),
-        "", "",
+        Paragraph("<b>VALOR TOTAL DA PROPOSTA</b>", style_body), "", "",
         Paragraph(f"<b>R$ {total_geral_venda:,.2f}</b>", style_body)
     ])
     
@@ -356,7 +337,6 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
         ('SPAN', (0, -1), (2, -1)),
         ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#EEEEEE')),
     ]))
-    
     story.append(item_table)
     story.append(Spacer(1, 30))
     
@@ -372,20 +352,21 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
     story.append(Paragraph(termos, style_body))
     
     doc.build(story, onFirstPage=draw_watermark, onLaterPages=draw_watermark)
-    
-    buffer.seek(0)
     return buffer.getvalue()
 
 if st.session_state.pecas:
     st.subheader("🖨️ Emitir Documento")
     pdf_bytes = gerar_pdf_orcamento(cliente if cliente else "Cliente", cnpj, endereco, st.session_state.pecas)
     
-    st.download_button(
+    if st.download_button(
         label="📥 Baixar Orçamento em PDF Oficial para Cliente",
         data=pdf_bytes,
         file_name=f"Orcamento_THS_{(cliente if cliente else 'Cliente').replace(' ', '_')}.pdf",
         mime="application/pdf",
         use_container_width=True
-    )
+    ):
+        st.session_state.autenticado = False
+        st.session_state.bloqueado = True
+        st.rerun()
 else:
     st.warning("Adicione pelo menos um item para liberar a emissão do orçamento em PDF.")
