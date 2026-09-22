@@ -71,7 +71,6 @@ def tela_login():
     st.markdown("<h2 style='text-align: center; color: #C00000;'>🛗 THS ELEVADORES</h2>", unsafe_allow_html=True)
     st.markdown("<h4 style='text-align: center;'>Painel Restrito - Sistema de Orçamentos Comercial</h4>", unsafe_allow_html=True)
     
-    # ⚠️ MENSAGEM PREVENTIVA EXIBIDA ANTES DO LOGIN
     st.info("ℹ️ **Aviso do Sistema:** A senha padrão da empresa possui limite máximo de **8 acessos temporários**. Para obter acesso ilimitado e definitivo, entre em contato com o administrador **Bruno Held dos Santos**.")
     
     col_l1, col_l2, col_l3 = st.columns((1, 2, 1))
@@ -82,23 +81,20 @@ def tela_login():
             botao_entrar = st.form_submit_button("Entrar no Sistema", use_container_width=True)
             
             if botao_entrar:
-                # Se a senha padrão já atingiu os 8 usos e mudou para 8148 no servidor
                 if usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "8148":
                     st.error("❌ Esta senha padrão atingiu o limite máximo de 8 usos e está expirada. Para obter acesso ilimitado, entre em contato com o administrador Bruno Held dos Santos.")
                 
-                # Validação dos acessos permitidos com a senha padrão ths123 (Até 8 vezes)
                 elif usuario_input == USUARIO_CORRETO and senha_input == "ths123" and SENHA_VALIDA_AGORA == "ths123":
                     novo_contador = USOS_REALIZADOS + 1
                     if novo_contador >= 8:
-                        salvar_controle_seguranca("8148", novo_contador) # Bloqueia mudando a senha mestre para 8148
+                        salvar_controle_seguranca("8148", novo_contador)
                     else:
-                        salvar_controle_seguranca("ths123", novo_contador) # Incrementa o uso
+                        salvar_controle_seguranca("ths123", novo_contador)
                     
                     st.session_state.autenticado = True
                     st.session_state.mensagem_limite = f"⚠️ **Acesso Temporário Registrado ({novo_contador}/8):** Você possui mais {8 - novo_contador} acessos restantes com esta senha padrão. Para obter acesso ilimitado, entre em contato com o administrador **Bruno Held dos Santos**."
                     st.rerun()
                 
-                # Validação do acesso permanente com a sua senha master 8148
                 elif usuario_input == USUARIO_CORRETO and senha_input == "8148":
                     st.session_state.autenticado = True
                     st.session_state.mensagem_limite = "✅ **Acesso Master Autorizado:** Modo de uso ilimitado ativo."
@@ -107,10 +103,10 @@ def tela_login():
                 else:
                     st.error("Usuário ou senha incorretos. Tente novamente.")
 
-# Aplica a trava rígida de login
 if not st.session_state.autenticado:
     tela_login()
     st.stop()
+
 def carregar_todos_clientes():
     if os.path.exists(ARQUIVO_BANCO_CLIENTES):
         try:
@@ -141,7 +137,6 @@ def remover_cliente_do_banco(nome):
 if 'lista_clientes_completa' not in st.session_state:
     st.session_state.lista_clientes_completa = carregar_todos_clientes()
 
-# Exibe o aviso de usos ativos no topo do painel interno
 if "mensagem_limite" in st.session_state:
     st.markdown(st.session_state.mensagem_limite, unsafe_allow_html=True)
 
@@ -198,7 +193,7 @@ with col1:
             if st.button("💾 Atualizar Dados", use_container_width=True):
                 salvar_cliente_no_banco(cliente, cnpj, endereco)
                 st.session_state.lista_clientes_completa = carregar_todos_clientes()
-                st.success("Dados atualizados permanentemente!")
+                st.success("Dados updated permanentemente!")
                 st.rerun()
         with col_btn2:
             if st.button("❌ Remover da Lista", use_container_width=True, type="primary"):
@@ -206,7 +201,6 @@ with col1:
                 st.session_state.lista_clientes_completa = carregar_todos_clientes()
                 st.warning(f"Cliente '{cliente_selecionado}' foi removido!")
                 st.rerun()
-
 if 'pecas' not in st.session_state:
     st.session_state.pecas = [
         {"nome": "Cabo de Tração 1/2", "quantidade": 4, "custo": 150.0},
@@ -216,6 +210,14 @@ if 'pecas' not in st.session_state:
 
 with col2:
     st.subheader("⚙️ Itens do Orçamento (Painel Interno)")
+    
+    # 🎁 SELEÇÃO DO TIPO DE PREÇO (Margem Padrão ou Cortesia)
+    tipo_preco = st.radio("Definição de Preço de Venda:", ["Margem Padrão (2.5x)", "Cortesia (Porcentagem Personalizada)"], horizontal=True)
+    
+    porcentagem_cortesia = 0.0
+    if tipo_preco == "Cortesia (Porcentagem Personalizada)":
+        porcentagem_cortesia = st.number_input("Porcentagem a aplicar sobre o valor de custo (%)", min_value=0.0, max_value=500.0, value=100.0, step=5.0)
+
     with st.form("nova_peca_form", clear_on_submit=True):
         f_nome = st.text_input("Nome da Peça")
         f_qnt = st.number_input("Quantidade", min_value=1, value=1, step=1)
@@ -228,7 +230,13 @@ with col2:
 
     if st.session_state.pecas:
         df_pecas = pd.DataFrame(st.session_state.pecas)
-        df_pecas['Preço Venda Unit.'] = df_pecas['custo'] * 2.5
+        
+        if tipo_preco == "Cortesia (Porcentagem Personalizada)":
+            fator_multiplicador = 1 + (porcentagem_cortesia / 100.0)
+            df_pecas['Preço Venda Unit.'] = df_pecas['custo'] * fator_multiplicador
+        else:
+            df_pecas['Preço Venda Unit.'] = df_pecas['custo'] * 2.5
+            
         df_pecas['Total Item'] = df_pecas['Preço Venda Unit.'] * df_pecas['quantidade']
         
         df_display = df_pecas.copy()
@@ -245,7 +253,7 @@ with col2:
             st.rerun()
     else:
         st.info("Nenhum item adicionado ainda.")
-# Função que desenha o seu LOGO como Marca d'Água no fundo do PDF
+
 def draw_watermark(canvas, doc):
     if os.path.exists(LOGO_PATH):
         canvas.saveState()
@@ -260,8 +268,7 @@ def draw_watermark(canvas, doc):
         canvas.drawImage(LOGO_PATH, pos_x, pos_y, width=largura_logo, height=altura_logo, mask='auto')
         canvas.restoreState()
 
-# Geração dinâmica do PDF em memória (Sem rastros de margem ou custos)
-def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
+def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas, tipo_preco, porcentagem_cortesia):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
         buffer, 
@@ -329,7 +336,12 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
     
     total_geral_venda = 0.0
     for p in pecas:
-        venda_unit = p['custo'] * 2.5
+        if tipo_preco == "Cortesia (Porcentagem Personalizada)":
+            fator_multiplicador = 1 + (porcentagem_cortesia / 100.0)
+            venda_unit = p['custo'] * fator_multiplicador
+        else:
+            venda_unit = p['custo'] * 2.5
+            
         total_item_venda = venda_unit * p['quantidade']
         total_geral_venda += total_item_venda
         
@@ -346,7 +358,6 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
     ])
     
     largura_colunas_itens = (252, 50, 115, 115)
-    item_table = Table(table_data, colWidths=letter[0]-80) # Ajustado dinamicamente para a largura da folha
     item_table = Table(table_data, colWidths=largura_colunas_itens)
     item_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#C00000')),
@@ -377,7 +388,14 @@ def gerar_pdf_orcamento(cliente, cnpj, endereco, pecas):
 
 if st.session_state.pecas:
     st.subheader("🖨️ Emitir Documento")
-    pdf_bytes = gerar_pdf_orcamento(cliente if cliente else "Cliente", cnpj, endereco, st.session_state.pecas)
+    pdf_bytes = gerar_pdf_orcamento(
+        cliente if cliente else "Cliente", 
+        cnpj, 
+        endereco, 
+        st.session_state.pecas,
+        tipo_preco,
+        porcentagem_cortesia
+    )
     
     if st.download_button(
         label="📥 Baixar Orçamento em PDF Oficial para Cliente",
